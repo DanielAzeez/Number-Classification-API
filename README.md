@@ -1,28 +1,41 @@
-You're welcome! Here's a **comprehensive README** for your project:
-
 ---
 
-# Number Classification API
+# **Number Classification API**
 
-This API classifies numbers based on several mathematical properties. It checks whether a number is **prime**, **perfect**, or **Armstrong**. It also provides a fun fact about the number.
+This project provides a serverless API built with AWS Lambda and API Gateway to classify numbers based on various mathematical properties. The API performs checks such as Armstrong number classification, prime check, perfect number check, and odd/even classification.
 
-## Overview
+## **Features**
+- **Armstrong Number Check**: Determines whether a number is an Armstrong number.
+- **Prime Number Check**: Identifies if the number is prime.
+- **Perfect Number Check**: Identifies if the number is a perfect number.
+- **Odd/Even Check**: Determines whether the number is odd or even.
+- **Fun Fact Generator**: Provides fun facts for each number, especially Armstrong numbers.
 
-The project exposes an API endpoint that accepts a **GET** request with a `number` query parameter. The response includes information such as whether the number is prime, perfect, or Armstrong, and a fun fact related to the number.
+## **API Endpoint**
 
-### API Endpoint
+### **URL Format**
 
 ```
-GET /api/classify-number?number=<your-number>
+GET https://<your-api-id>.execute-api.<region>.amazonaws.com/<stage>/api/classify-number?number=<number>
 ```
 
-#### Example Request:
+Where:
+- `<your-api-id>`: The API Gateway's unique ID.
+- `<region>`: AWS region (e.g., `us-east-1`).
+- `<stage>`: The deployment stage (e.g., `dev`, `prod`).
+- `<number>`: The number to classify (e.g., `371`).
+
+### **Example Request**
+
+To classify the number `371`, visit the URL:
 
 ```
-GET https://xyz.execute-api.us-east-1.amazonaws.com/test/api/classify-number?number=371
+https://<your-api-id>.execute-api.<region>.amazonaws.com/<stage>/api/classify-number?number=371
 ```
 
-#### Example Response (200 OK):
+### **Response Format**
+
+#### **Success (HTTP Status: 200 OK)**
 
 ```json
 {
@@ -35,142 +48,194 @@ GET https://xyz.execute-api.us-east-1.amazonaws.com/test/api/classify-number?num
 }
 ```
 
-#### Example Response (400 Bad Request):
+Explanation of fields:
+- `number`: The input number.
+- `is_prime`: Boolean indicating if the number is prime.
+- `is_perfect`: Boolean indicating if the number is perfect.
+- `properties`: List of properties (e.g., "armstrong", "even", "odd").
+- `digit_sum`: Sum of digits of the number.
+- `fun_fact`: A fun fact about the number (e.g., for Armstrong numbers, it shows the equation that proves it).
+
+#### **Error (HTTP Status: 400 Bad Request)**
+
+If the input is missing or invalid, the response will contain an error message:
 
 ```json
 {
   "error": true,
-  "message": "Invalid or missing parameter 'number'."
+  "message": "Invalid input. Please provide a valid number."
 }
 ```
 
-## Features
+If the `number` parameter is invalid (e.g., not an integer), the API will return a `400` error with this message.
 
-- **Prime Check**: Identifies whether the number is prime.
-- **Perfect Number Check**: Identifies whether the number is a perfect number.
-- **Armstrong Number Check**: Identifies whether the number is an Armstrong number.
-- **Fun Fact**: Provides a fun fact about the number based on its properties.
-- **Query Parameter**: Accepts a `number` query parameter, which must be a valid integer.
+---
 
-## Requirements
+## **Step-by-Step Guide to Deploy the API**
 
-- **AWS Lambda**: The business logic of the API is implemented in an AWS Lambda function.
-- **API Gateway**: The API is exposed using AWS API Gateway, which triggers the Lambda function when the endpoint is hit.
-- **AWS IAM Role**: Proper IAM permissions must be configured to allow API Gateway to invoke the Lambda function.
+### **1. Create the Lambda Function**
 
-## Setup and Deployment
-
-1. **Lambda Function**: The Lambda function contains the logic to process the request and return the correct response. It checks the properties of the number and calculates relevant facts.
-
-2. **API Gateway**: 
-   - A REST API is created in API Gateway to expose the Lambda function.
-   - The API uses **Lambda proxy integration**, meaning the incoming request is passed directly to the Lambda function as a structured event.
-   - The endpoint `/api/classify-number` accepts the `number` query parameter.
-
-3. **Permissions**: Ensure the Lambda function has the necessary permissions to execute and that API Gateway has permissions to invoke the Lambda function.
-
-## Lambda Code
-
-The Lambda function in Python processes the input number and returns the appropriate classification and fun fact. Below is an overview of how the Lambda function works:
-
-### Python Code (Lambda Function)
+1. **Log in to AWS Console**.
+2. Navigate to **AWS Lambda** and click **Create function**.
+3. Choose **Author from scratch**.
+4. Set the following options:
+   - **Function name**: `NumberClassificationFunction`
+   - **Runtime**: `Python 3.x`
+5. **Function code**: In the inline editor, paste the following code:
 
 ```python
 import json
 
 def lambda_handler(event, context):
+    # Retrieve the 'number' query string parameter
     try:
-        # Extract number from query parameter
-        number = int(event["queryStringParameters"].get("number"))
+        number_str = event.get('queryStringParameters', {}).get('number', None)
         
-        # Check number properties
-        is_prime = is_prime_number(number)
-        is_perfect = is_perfect_number(number)
-        properties = get_properties(number)
-        digit_sum = sum(map(int, str(number)))
-        fun_fact = get_fun_fact(number, properties)
-
-        # Prepare response
+        if not number_str or not number_str.isdigit():
+            # If the 'number' is not provided or is invalid, return a 400 error with the template format
+            return {
+                'statusCode': 400,
+                'body': json.dumps({
+                    'error': True,
+                    'message': 'Invalid input. Please provide a valid number.'
+                })
+            }
+        
+        # Convert the 'number' parameter to an integer
+        number = int(number_str)
+        
+        # Initialize the response dictionary with properties and fun fact
         response = {
-            "number": number,
-            "is_prime": is_prime,
-            "is_perfect": is_perfect,
-            "properties": properties,
-            "digit_sum": digit_sum,
-            "fun_fact": fun_fact
+            'number': number,
+            'properties': [],
+            'is_prime': is_prime(number),
+            'is_perfect': is_perfect(number),
+            'digit_sum': sum(int(digit) for digit in str(number)),
+            'fun_fact': get_fun_fact(number)
         }
-
-        # Return success response
+        
+        # Add Armstrong number classification and even/odd logic
+        if is_armstrong(number):
+            response['properties'].append('armstrong')
+        
+        if number % 2 == 0:
+            response['properties'].append('even')
+        else:
+            response['properties'].append('odd')
+        
+        # Return the response
         return {
             'statusCode': 200,
             'body': json.dumps(response)
         }
-
+    
     except Exception as e:
-        # Handle errors
+        # Catch unexpected errors and return a generic error message in the 500 response
         return {
-            'statusCode': 400,
-            'body': json.dumps({"error": True, "message": str(e)})
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': True,
+                'message': f"An unexpected error occurred: {str(e)}"
+            })
         }
 
-def is_prime_number(number):
-    if number < 2:
+# Helper function to check if a number is Armstrong
+def is_armstrong(num):
+    num_str = str(num)
+    num_digits = len(num_str)
+    sum_of_powers = sum(int(digit) ** num_digits for digit in num_str)
+    return sum_of_powers == num
+
+# Helper function to check if a number is prime
+def is_prime(num):
+    if num <= 1:
         return False
-    for i in range(2, int(number ** 0.5) + 1):
-        if number % i == 0:
+    for i in range(2, int(num**0.5) + 1):
+        if num % i == 0:
             return False
     return True
 
-def is_perfect_number(number):
-    divisors = [i for i in range(1, number) if number % i == 0]
-    return sum(divisors) == number
+# Helper function to check if a number is perfect
+def is_perfect(num):
+    divisors_sum = sum(i for i in range(1, num) if num % i == 0)
+    return divisors_sum == num
 
-def get_properties(number):
-    properties = []
-    if is_armstrong_number(number):
-        properties.append("armstrong")
-    if number % 2 == 0:
-        properties.append("even")
-    else:
-        properties.append("odd")
-    return properties
-
-def is_armstrong_number(number):
-    num_str = str(number)
-    power = len(num_str)
-    return sum(int(digit) ** power for digit in num_str) == number
-
-def get_fun_fact(number, properties):
-    if "armstrong" in properties:
-        return f"{number} is an Armstrong number because " + \
-               " + ".join([f"{int(digit)}^{len(str(number))}" for digit in str(number)]) + \
-               f" = {number}"
-    return f"{number} is not an Armstrong number."
+# Fun fact generator (replace with your logic)
+def get_fun_fact(number):
+    if is_armstrong(number):
+        return f"{number} is an Armstrong number because " + " + ".join([f"{digit}^{len(str(number))}" for digit in str(number)]) + f" = {number}"
+    return f"{number} is an interesting number!"
 ```
 
-## Testing the API
+6. **Click Deploy** to save the function.
 
-### 1. **Using Postman**
-   - Set up a **GET** request to the endpoint.
-   - Example URL: `https://xyz.execute-api.us-east-1.amazonaws.com/test/api/classify-number?number=371`
-   - Send the request and inspect the response.
+### **2. Create the API Gateway**
 
-### 2. **Using Curl**
-   ```bash
-   curl "https://xyz.execute-api.us-east-1.amazonaws.com/test/api/classify-number?number=371"
+1. In the AWS Console, go to **API Gateway**.
+2. Click **Create API** and choose **HTTP API**.
+3. Set the following options:
+   - **API Name**: `NumberClassificationAPI`
+   - **Protocol**: `HTTP`
+4. Under **Integrations**, choose **Lambda Function** and select your previously created Lambda function `NumberClassificationFunction`.
+5. Set the **Route** to `GET` and **Path** to `/api/classify-number`.
+
+### **3. Deploy the API**
+
+1. Click **Deploy** and choose **[New Stage]** for the deployment.
+2. Enter a **Stage Name** (e.g., `prod`).
+3. Once deployed, the URL for your API will be available in the **Invoke URL** section. This is your endpoint for testing.
+
+---
+
+## **Testing the API Using the Browser**
+
+You can test the API directly using your browser.
+
+1. Open your browser.
+2. In the address bar, enter the following URL (replace the placeholders with actual values):
+   
+   ```
+   https://<your-api-id>.execute-api.<region>.amazonaws.com/<stage>/api/classify-number?number=<number>
    ```
 
-### 3. **API Gateway Console**
-   - Go to your **API Gateway** console.
-   - Navigate to **Stages**, select the appropriate stage, and test the endpoint directly from the console.
+   Example URL:
 
-## Error Handling
+   ```
+   https://abcd1234.execute-api.us-east-1.amazonaws.com/prod/api/classify-number?number=371
+   ```
 
-- **400 Bad Request**: If the `number` parameter is missing or invalid, the API will return a 400 response with an error message.
-- **500 Internal Server Error**: If something goes wrong in the Lambda function, a 500 response will be returned.
+3. Press **Enter**.
 
-## Conclusion
+### **Successful Response Example (200 OK)**
 
-This project demonstrates how to use AWS Lambda and API Gateway to create an API that classifies numbers based on their properties. It is a simple yet powerful example of serverless architecture in action.
+If the request is successful, you will see a response similar to:
+
+```json
+{
+  "number": 371,
+  "is_prime": false,
+  "is_perfect": false,
+  "properties": ["armstrong", "odd"],
+  "digit_sum": 11,
+  "fun_fact": "371 is an Armstrong number because 3^3 + 7^3 + 1^3 = 371"
+}
+```
+
+### **Error Response Example (400 Bad Request)**
+
+If you enter an invalid number, you will get the following response:
+
+```json
+{
+  "error": true,
+  "message": "Invalid input. Please provide a valid number."
+}
+```
+
+---
+
+## **Conclusion**
+
+This project allows you to classify numbers based on various mathematical properties using a simple serverless API deployed with AWS Lambda and API Gateway. It provides a rich set of features like Armstrong number checks, prime number identification, perfect number checks, and fun facts about numbers. Testing is simple with just a browser, and the deployment process is straightforward using AWS services.
 
 ---
