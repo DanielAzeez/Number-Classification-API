@@ -1,61 +1,81 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
-import requests
+import json
 
-app = FastAPI()
+def lambda_handler(event, context):
+    # Retrieve the 'number' query string parameter
+    try:
+        number_str = event.get('queryStringParameters', {}).get('number', None)
+        
+        if not number_str or not number_str.isdigit():
+            # If the 'number' is not provided or is invalid, return a 400 error with the template format
+            return {
+                'statusCode': 400,
+                'body': json.dumps({
+                    'number': number_str,
+                    'error': True
+                })
+            }
+        
+        # Convert the 'number' parameter to an integer
+        number = int(number_str)
+        
+        # Initialize the response dictionary with properties and fun fact
+        response = {
+            'number': number,
+            'properties': [],
+            'is_prime': is_prime(number),
+            'is_perfect': is_perfect(number),
+            'digit_sum': sum(int(digit) for digit in str(number)),
+            'fun_fact': get_fun_fact(number)
+        }
+        
+        # Add Armstrong number classification and even/odd logic
+        if is_armstrong(number):
+            response['properties'].append('armstrong')
+        
+        if number % 2 == 0:
+            response['properties'].append('even')
+        else:
+            response['properties'].append('odd')
+        
+        # Return the response
+        return {
+            'statusCode': 200,
+            'body': json.dumps(response)
+        }
+    
+    except Exception as e:
+        # Catch unexpected errors and return a generic error message in the 500 response
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': True,
+                'message': f"An unexpected error occurred: {str(e)}"
+            })
+        }
 
-# ✅ Enable CORS for all origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Replace with ["https://your-frontend.com"] to restrict access
-    allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
-)
+# Helper function to check if a number is Armstrong
+def is_armstrong(num):
+    num_str = str(num)
+    num_digits = len(num_str)
+    sum_of_powers = sum(int(digit) ** num_digits for digit in num_str)
+    return sum_of_powers == num
 
-NUMBERS_API_URL = "http://numbersapi.com"
-
-# Utility functions
-def is_prime(n):
-    if n < 2:
+# Helper function to check if a number is prime
+def is_prime(num):
+    if num <= 1:
         return False
-    for i in range(2, int(n ** 0.5) + 1):
-        if n % i == 0:
+    for i in range(2, int(num**0.5) + 1):
+        if num % i == 0:
             return False
     return True
 
-def is_armstrong(n):
-    num_str = str(n)
-    power = len(num_str)
-    return sum(int(digit) ** power for digit in num_str) == n
+# Helper function to check if a number is perfect
+def is_perfect(num):
+    divisors_sum = sum(i for i in range(1, num) if num % i == 0)
+    return divisors_sum == num
 
-def is_perfect(n):
-    return sum(i for i in range(1, n) if n % i == 0) == n
-
-def get_digit_sum(n):
-    return sum(int(digit) for digit in str(n))
-
-@app.get("/api/classify-number")
-async def classify_number(number: int):
-    try:
-        properties = ["odd" if number % 2 != 0 else "even"]
-        if is_armstrong(number):
-            properties.insert(0, "armstrong")
-
-        # Get fun fact from Numbers API
-        fun_fact = requests.get(f"{NUMBERS_API_URL}/{number}/math").text
-
-        return {
-            "number": number,
-            "is_prime": is_prime(number),
-            "is_perfect": is_perfect(number),
-            "properties": properties,
-            "digit_sum": get_digit_sum(number),
-            "fun_fact": fun_fact
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-# ✅ Adapt FastAPI for Vercel
-handler = Mangum(app)
+# Fun fact generator (replace with your logic)
+def get_fun_fact(number):
+    if is_armstrong(number):
+        return f"{number} is an Armstrong number because " + " + ".join([f"{digit}^{len(str(number))}" for digit in str(number)]) + f" = {number}"
+    return f"{number} is an interesting number!"
