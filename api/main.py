@@ -10,8 +10,8 @@ def lambda_handler(event, context):
             return {
                 'statusCode': 400,
                 'body': json.dumps({
-                    'number': number_str,
-                    'error': True
+                    'error': True,
+                    'message': 'Invalid input. Please provide a valid number.'
                 })
             }
         
